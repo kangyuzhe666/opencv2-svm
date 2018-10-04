@@ -1,0 +1,126 @@
+from imutils.video.pivideostream import PiVideoStream
+from imutils.video import FPS
+from picamera.array import PiRGBArray
+from picamera import PiCamera
+import numpy as np
+import imutils
+import cv2
+import time
+
+img1_gray = cv2.imread("4.jpg")
+
+def publicnum(num, d=0):
+    dictnum = {}
+    for i in range(len(num)):
+        if num[i] in dictnum.keys():
+            dictnum[num[i]] += 1
+        else:
+            dictnum.setdefault(num[i], 1)
+    maxnum = 0
+    maxkey = 0
+    for k, v in dictnum.items():
+        if v > maxnum:
+            maxnum = v
+            maxkey = k
+    return maxkey
+
+def drawMatchesKnn_cv2(img1_gray, kp1, img2_gray, kp2, goodMatch,img):
+
+    key1=[]
+
+    shape=img1_gray.shape
+    h1, w1 = img1_gray.shape[:2]
+    h2, w2 = img2_gray.shape[:2]
+
+    vis = np.zeros((max(h1, h2), w1 + w2, 3), np.uint8)
+    vis[:h1, :w1] = img1_gray
+    vis[:h2, w1:w1 + w2] = img2_gray
+
+    p1 = [kpp.queryIdx for kpp in goodMatch]
+    p2 = [kpp.trainIdx for kpp in goodMatch]
+
+    try:
+        post1 = np.int32([kp1[pp].pt for pp in p1])
+        post2 = np.int32([kp2[pp].pt for pp in p2]) + (w1, 0)
+    except ValueError:
+        pass
+    try:
+        for (x1, y1),(x2, y2) in zip(post1, post2):
+
+            key1.append([x2-shape[1],y2])
+
+            print(x2-shape[1],y2)
+    except UnboundLocalError:
+        pass
+    key1.sort()
+    try:
+        a1, a2 = key1[0][0], key1[-1][0]
+        key1.sort(key=lambda x: x[1])
+        b1, b2 = key1[0][1], key1[-1][1]
+    except IndexError:
+        pass
+    try:
+        cv2.rectangle(img, (int(a1), int(b1)), (int(a2), int(b2)), (0, 255, 255), 3)
+    except UnboundLocalError:
+        pass
+    cv2.imshow('video', img )
+
+
+def get_same(img2_gray):
+    # img2_gray1 = img2_gray[350:480, 0:604]
+    img2_gray1 = prev[185:295, 0:704]
+    # img2_gray = cv2.imread("sheet/"+path)
+    sift = cv2.xfeatures2d.SURF_create()
+    # sift = cv2.SURF()
+
+    kp1, des1 = sift.detectAndCompute(img1_gray, None)
+    kp2, des2 = sift.detectAndCompute(img2_gray1, None)
+
+    # BFmatcher with default parms
+    bf = cv2.BFMatcher(cv2.NORM_L2)
+    matches = bf.knnMatch(des1, des2, k=2)
+    goodMatch = []
+    for m, n in matches:
+        if m.distance < 0.6 * n.distance:
+            goodMatch.append(m)
+
+    drawMatchesKnn_cv2(img1_gray, kp1, img2_gray1, kp2, goodMatch[:20],img2_gray)
+
+
+
+
+
+
+
+
+camera = PiCamera()
+camera.resolution = (320, 240)
+camera.framerate = 30
+rawCapture = PiRGBArray(camera, size=(320, 240))
+stream = camera.capture_continuous(rawCapture, format="bgr",
+                                   use_video_port=True, burst=True)
+camera.close()
+
+vs = PiVideoStream().start()
+time.sleep(2.0)
+fps = FPS().start()
+
+while (True):
+    frame = vs.read()
+    frame = imutils.resize(frame, width=160)
+    prev = cv2.resize(frame, (704, 480))
+    get_same(prev)
+    key = cv2.waitKey(1) & 0xFF
+    if key == ord("q"):
+        break
+    fps.update()
+
+fps.stop()
+print("[INFO] elasped time: {:.2f}".format(fps.elapsed()))
+print("[INFO] approx. FPS: {:.2f}".format(fps.fps()))
+
+cv2.destroyAllWindows()
+vs.stop()
+
+
+
